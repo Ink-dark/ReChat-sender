@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore dependencies
+      run: msbuild HalloChat-CSharp.sln /t:Restore /p:Configuration=Release
+
+    - name: Build solution
+      run: msbuild HalloChat-CSharp.sln /t:Build /p:Configuration=Release /p:Platform="Any CPU"
+
+    - name: Create release package
+      run: |
+        # 创建发布目录
+        New-Item -ItemType Directory -Force -Path release
+        # 复制必要文件到发布目录
+        Copy-Item -Path "bin/Release/*" -Destination "release/" -Recurse
+        # 创建ZIP包
+        Compress-Archive -Path "release/*" -DestinationPath "HalloChat-CSharp-${{ github.ref_name }}.zip"
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./HalloChat-CSharp-${{ github.ref_name }}.zip
+        asset_name: HalloChat-CSharp-${{ github.ref_name }}.zip
+        asset_content_type: application/zip
