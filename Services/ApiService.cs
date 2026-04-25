@@ -30,7 +30,6 @@ namespace HalloChat_CSharp.Services
             httpClient.DefaultRequestHeaders.Accept.Clear();
             httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
         }
-
         public async Task<HttpResponseMessage> SendRequestAsync<T>(string endpoint, HttpMethod method, T data = null)
         {
             try
