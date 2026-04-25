@@ -14,6 +14,10 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip">
     <Window.Resources>
+        <!-- 转换器 -->
+        <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <local:BooleanToStringConverter x:Key="BooleanToStringConverter" />
+        
         <Style TargetType="Button" x:Key="PrimaryButton">
             <Setter Property="Background" Value="#667eea" />
             <Setter Property="Foreground" Value="White" />
@@ -190,19 +194,37 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="8">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <!-- 接收消息 -->
+                                <StackPanel x:Name="ReceivedMessagePanel" Orientation="Horizontal" HorizontalAlignment="Left" Visibility="{Binding IsSelf, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=false}">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Username}" FontSize="12" FontWeight="Medium" Foreground="#4a5568" Margin="0,0,0,4" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Username}" FontSize="12" FontWeight="Medium" Foreground="#4a5568" />
+                                            <TextBlock Text=" ({Binding Platform})" FontSize="10" Foreground="#718096" Margin="4,0,0,0" />
+                                            <TextBlock Text=" {Binding Timestamp, StringFormat='HH:mm'}" FontSize="10" Foreground="#718096" Margin="4,0,0,0" />
+                                        </StackPanel>
                                         <Border Background="#667eea" CornerRadius="8" Padding="12,8" MaxWidth="400">
                                             <TextBlock Text="{Binding Content}" FontSize="14" Foreground="White" TextWrapping="Wrap" />
                                         </Border>
                                     </StackPanel>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                
+                                <!-- 发送消息 -->
+                                <StackPanel x:Name="SentMessagePanel" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="{Binding IsSelf, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=true}">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Username}" FontSize="12" FontWeight="Medium" Foreground="#4a5568" Margin="0,0,0,4" HorizontalAlignment="Right" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm'}" FontSize="10" Foreground="#718096" Margin="0,0,4,0" />
+                                            <TextBlock Text=" ({Binding Platform})" FontSize="10" Foreground="#718096" Margin="0,0,4,0" />
+                                            <TextBlock Text="{Binding Username}" FontSize="12" FontWeight="Medium" Foreground="#4a5568" />
+                                        </StackPanel>
                                         <Border Background="#e2e8f0" CornerRadius="8" Padding="12,8" MaxWidth="400">
-                                            <TextBlock Text="{Binding Content}" FontSize="14" Foreground="#2d3748" TextWrapping="Wrap" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Content}" FontSize="14" Foreground="#2d3748" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                                    <TextBlock Text="{Binding IsSent, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='已发送|发送中'}" FontSize="10" Foreground="#718096" />
+                                                    <TextBlock Text=" | " FontSize="10" Foreground="#718096" />
+                                                    <TextBlock Text="{Binding IsRead, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='已读|未读'}" FontSize="10" Foreground="#718096" />
+                                                </StackPanel>
+                                            </StackPanel>
                                         </Border>
                                     </StackPanel>
                                 </StackPanel>

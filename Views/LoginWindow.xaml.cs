@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,6 +19,7 @@ namespace HalloChat_CSharp.Views
 {
     // 引用主命名空间中的类型
     using HalloChat_CSharp;
+    using HalloChat_CSharp.Services;
 
     /// <summary>
     /// LoginWindow.xaml 的交互逻辑
@@ -30,13 +30,20 @@ namespace HalloChat_CSharp.Views
         private ServerInfo selectedServer;
         private string bgColor = "#ffffff";
         private string language = "zh-CN";
+        private ApiService apiService;
 
         public LoginWindow()
         {
             InitializeComponent();
             InitializeServers();
+            InitializeApiService();
             LoadSettings();
             InitializeUI();
+        }
+
+        private void InitializeApiService()
+        {
+            apiService = new ApiService();
         }
 
         private void InitializeServers()
@@ -118,6 +125,8 @@ namespace HalloChat_CSharp.Views
             }
         }
 
+        private AuthService authService;
+
         private async Task LoginAsync(string username, string password)
         {
             try
@@ -154,14 +163,37 @@ namespace HalloChat_CSharp.Views
                     }
                 }
 
-                // 非管理员模式，需要连接到服务器
+                // 非管理员模式，连接到服务器
                 selectedServer = (ServerInfo)ServerComboBox.SelectedItem;
                 
-                // 模拟网络延迟
-                await Task.Delay(1000);
+                // 初始化 API 服务
+                await apiService.InitializeAsync(selectedServer.Address, selectedServer.Port);
                 
-                // 这里可以添加实际的服务器登录逻辑
-                ShowError($"已选择服务器: {selectedServer.Name}，登录功能开发中");
+                // 初始化认证服务
+                authService = new AuthService(apiService);
+                
+                // 尝试连接 WebSocket
+                try
+                {
+                    await apiService.ConnectWebSocketAsync();
+                }
+                catch (Exception ex)
+                {
+                    ShowError($"WebSocket 连接失败: {ex.Message}");
+                    return;
+                }
+                
+                // 发送登录请求
+                try
+                {
+                    var userInfo = await authService.LoginAsync(username, password);
+                    SaveUserInfo(userInfo);
+                    ShowMainWindow(userInfo);
+                }
+                catch (Exception ex)
+                {
+                    ShowError($"登录失败: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {

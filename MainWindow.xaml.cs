@@ -3,21 +3,104 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Newtonsoft.Json;
 
 namespace HalloChat_CSharp
 {
+    using Services;
+
     /// <summary>
     /// MainWindow.xaml 的交互逻辑
     /// </summary>
     public partial class MainWindow : Window
     {
         private UserInfo currentUser;
+        private ApiService apiService;
+        private AccountService accountService;
+        private MessageService messageService;
+        private AuthService authService;
+        private SyncService syncService;
+        private List<PlatformAccount> platformAccounts;
+        private List<ChatMessage> messages;
+        private string selectedContact;
+        private string selectedPlatform;
 
         public MainWindow(UserInfo userInfo)
         {
             InitializeComponent();
             currentUser = userInfo;
+            InitializeServices();
+            LoadPlatformAccounts();
+            LoadMessages();
+            StartSync();
             UpdateUI();
+        }
+
+        private void InitializeServices()
+        {
+            apiService = new ApiService();
+            apiService.ConnectionStatusChanged += OnConnectionStatusChanged;
+            authService = new AuthService(apiService);
+            authService.AuthStatusChanged += OnAuthStatusChanged;
+            accountService = new AccountService(apiService);
+            messageService = new MessageService(apiService);
+            messageService.MessageReceived += OnMessageReceived;
+            messageService.MessageSent += OnMessageSent;
+            messageService.MessageStatusChanged += OnMessageStatusChanged;
+            syncService = new SyncService(apiService, messageService, accountService);
+            syncService.CrossPlatformMessageReceived += OnCrossPlatformMessageReceived;
+            syncService.MessageSynced += OnMessageSynced;
+            syncService.SyncStatusChanged += OnSyncStatusChanged;
+        }
+
+        private async void StartSync()
+        {
+            await syncService.StartSyncAsync();
+        }
+
+        private void OnAuthStatusChanged(bool isAuthenticated)
+        {
+            if (!isAuthenticated)
+            {
+                // 如果认证状态变为未认证，跳转到登录窗口
+                var loginWindow = new Views.LoginWindow();
+                loginWindow.Show();
+                this.Close();
+            }
+        }
+
+        private async void LoadPlatformAccounts()
+        {
+            try
+            {
+                // 从后端获取平台账号列表
+                platformAccounts = await accountService.GetPlatformAccountsAsync();
+                // 更新界面显示
+                UpdatePlatformAccounts();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"加载平台账号失败: {ex.Message}");
+                // 使用模拟数据
+                platformAccounts = new List<PlatformAccount>
+                {
+                    new PlatformAccount { Id = "1", Platform = "QQ", AccountName = "QQ账号1", Status = "在线" },
+                    new PlatformAccount { Id = "2", Platform = "微信", AccountName = "微信账号1", Status = "在线" }
+                };
+                UpdatePlatformAccounts();
+            }
+        }
+
+        private void UpdatePlatformAccounts()
+        {
+            // 这里可以更新平台账号列表的显示
+            Console.WriteLine($"已加载 {platformAccounts.Count} 个平台账号");
+        }
+
+        private async void LoadMessages()
+        {
+            messages = new List<ChatMessage>();
+            // 可以从后端加载历史消息
         }
 
         private void UpdateUI()
@@ -28,12 +111,116 @@ namespace HalloChat_CSharp
             UserIdText.Text = "ID: " + currentUser.Id;
 
             // 更新系统状态
-            ConnectionStatusText.Text = "已连接";
+            ConnectionStatusText.Text = apiService.IsConnected ? "已连接" : "未连接";
             LastOnlineText.Text = "最后在线: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
             // 更新聊天窗口标题
             ChatTitleText.Text = "选择联系人开始聊天";
             ChatStatusText.Text = "";
+        }
+
+        private void OnMessageReceived(ChatMessage message)
+        {
+            try
+            {
+                messages.Add(message);
+                // 更新消息列表显示
+                UpdateMessageList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理消息失败: {ex.Message}");
+            }
+        }
+
+        private void OnMessageSent(ChatMessage message)
+        {
+            try
+            {
+                messages.Add(message);
+                // 更新消息列表显示
+                UpdateMessageList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理发送消息失败: {ex.Message}");
+            }
+        }
+
+        private void OnMessageStatusChanged(ChatMessage message)
+        {
+            try
+            {
+                var existingMessage = messages.FirstOrDefault(m => m.Id == message.Id);
+                if (existingMessage != null)
+                {
+                    existingMessage.IsRead = message.IsRead;
+                    // 更新消息列表显示
+                    UpdateMessageList();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理消息状态变更失败: {ex.Message}");
+            }
+        }
+
+        private void OnCrossPlatformMessageReceived(ChatMessage message)
+        {
+            try
+            {
+                // 处理跨平台消息
+                Console.WriteLine($"收到跨平台消息: {message.Platform} -> {message.Content}");
+                messages.Add(message);
+                UpdateMessageList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理跨平台消息失败: {ex.Message}");
+            }
+        }
+
+        private void OnMessageSynced(ChatMessage message)
+        {
+            try
+            {
+                // 处理同步消息
+                Console.WriteLine($"同步消息: {message.Platform} -> {message.Content}");
+                var existingMessage = messages.FirstOrDefault(m => m.Id == message.Id);
+                if (existingMessage == null)
+                {
+                    messages.Add(message);
+                    UpdateMessageList();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理同步消息失败: {ex.Message}");
+            }
+        }
+
+        private void OnSyncStatusChanged(bool isSyncing)
+        {
+            try
+            {
+                // 更新同步状态显示
+                Console.WriteLine($"同步状态: {(isSyncing ? "正在同步" : "已停止同步")}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理同步状态变更失败: {ex.Message}");
+            }
+        }
+
+        private void OnConnectionStatusChanged(bool isConnected)
+        {
+            ConnectionStatusText.Text = isConnected ? "已连接" : "未连接";
+        }
+
+        private void UpdateMessageList()
+        {
+            // 这里可以更新消息列表的显示
+            Console.WriteLine($"消息列表已更新，共 {messages.Count} 条消息");
         }
 
         private void ServerItem_MouseDown(object sender, MouseButtonEventArgs e)
@@ -45,13 +232,31 @@ namespace HalloChat_CSharp
         private void ContactItem_MouseDown(object sender, MouseButtonEventArgs e)
         {
             // 处理联系人选择
-            MessageBox.Show("联系人选择功能开发中", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            var contact = (ContactInfo)((FrameworkElement)sender).DataContext;
+            selectedContact = contact.Username;
+            ChatTitleText.Text = contact.Username;
+            ChatStatusText.Text = contact.Status;
         }
 
-        private void SendMessageButton_Click(object sender, RoutedEventArgs e)
+        private async void SendMessageButton_Click(object sender, RoutedEventArgs e)
         {
-            // 处理发送消息
-            MessageBox.Show("消息发送功能开发中", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (string.IsNullOrEmpty(selectedContact) || string.IsNullOrEmpty(MessageInput.Text))
+            {
+                MessageBox.Show("请选择联系人和输入消息", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                await messageService.SendMessageAsync(selectedPlatform ?? "QQ", selectedContact, MessageInput.Text);
+                
+                // 清空输入框
+                MessageInput.Text = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送消息失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void AddContactButton_Click(object sender, RoutedEventArgs e)
@@ -97,12 +302,26 @@ namespace HalloChat_CSharp
             SettingsOverlay.Visibility = Visibility.Collapsed;
         }
 
-        private void LogoutButton_Click(object sender, RoutedEventArgs e)
+        private async void LogoutButton_Click(object sender, RoutedEventArgs e)
         {
             // 处理登出
-            var loginWindow = new Views.LoginWindow();
-            loginWindow.Show();
-            this.Close();
+            try
+            {
+                // 停止同步
+                await syncService.StopSyncAsync();
+                await authService.LogoutAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"登出失败: {ex.Message}");
+            }
+            finally
+            {
+                apiService.DisconnectWebSocketAsync();
+                var loginWindow = new Views.LoginWindow();
+                loginWindow.Show();
+                this.Close();
+            }
         }
 
         private void ProfileButton_Click(object sender, RoutedEventArgs e)
@@ -171,5 +390,48 @@ namespace HalloChat_CSharp
         public string Id { get; set; }
         public string Name { get; set; }
         public List<ContactInfo> Members { get; set; }
+    }
+
+    // 转换器类
+    public class BooleanToVisibilityConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            bool boolValue = (bool)value;
+            string param = parameter as string;
+            
+            if (param == "false")
+                return boolValue ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+            else
+                return boolValue ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new System.NotImplementedException();
+        }
+    }
+
+    public class BooleanToStringConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            bool boolValue = (bool)value;
+            string param = parameter as string;
+            
+            if (!string.IsNullOrEmpty(param))
+            {
+                string[] parts = param.Split('|');
+                if (parts.Length == 2)
+                    return boolValue ? parts[0] : parts[1];
+            }
+            
+            return boolValue.ToString();
+        }
+
+        public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }
